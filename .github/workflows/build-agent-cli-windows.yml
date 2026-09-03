@@ -1,0 +1,32 @@
+name: Build Zed Agent CLI for Windows
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 120
+    env:
+      CARGO_INCREMENTAL: 0
+      ZED_RELEASE_CHANNEL: stable
+      RELEASE_CHANNEL: stable
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+      - name: Build Zed and CLI
+        shell: pwsh
+        run: |
+          & 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\Launch-VsDevShell.ps1' -Arch amd64 -HostArch amd64
+          rustup target add x86_64-pc-windows-msvc
+          cargo --config .cargo/bundle-config.toml build --release --package zed --package cli --target x86_64-pc-windows-msvc
+          New-Item -ItemType Directory -Path artifact\bin -Force | Out-Null
+          Copy-Item target\x86_64-pc-windows-msvc\release\zed.exe artifact\Zed.exe
+          Copy-Item target\x86_64-pc-windows-msvc\release\cli.exe artifact\bin\zed.exe
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: zed-agent-cli-windows-x86_64
+          path: artifact
+          if-no-files-found: error
