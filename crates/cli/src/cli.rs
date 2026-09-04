@@ -74,6 +74,9 @@ pub enum AgentAction {
         new_thread: bool,
         /// Block until the agent turn completes.
         wait: bool,
+        /// Emit machine-readable JSONL lifecycle events.
+        #[serde(default)]
+        events: bool,
     },
     /// List known threads.
     List {

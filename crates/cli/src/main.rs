@@ -161,6 +161,9 @@ struct Args {
     /// Wait for the agent turn to finish before exiting
     #[arg(long)]
     agent_wait: bool,
+    /// Emit machine-readable JSONL lifecycle events for an agent prompt
+    #[arg(long)]
+    agent_events: bool,
     /// Agent profile for a new thread, which decides the available tools.
     /// Requires `--agent-new`
     #[arg(long, value_name = "PROFILE")]
@@ -509,6 +512,7 @@ mod tests {
             agent_project: None,
             agent_new: false,
             agent_wait: false,
+            agent_events: false,
             agent_list_format: AgentListFormat::Text,
             agent_profile: None,
             agent_model: None,
@@ -913,6 +917,7 @@ fn validate_agent_args(args: &Args) -> Result<()> {
         );
         anyhow::ensure!(!args.agent_new, "--agent-new requires --agent");
         anyhow::ensure!(!args.agent_wait, "--agent-wait requires --agent");
+        anyhow::ensure!(!args.agent_events, "--agent-events requires --agent");
         anyhow::ensure!(
             args.agent_project.is_none(),
             "--agent-project requires --agent or --agent-list"
@@ -1349,6 +1354,7 @@ fn run() -> Result<()> {
                 model: args.agent_model.clone(),
                 new_thread: args.agent_new,
                 wait: args.agent_wait,
+                events: args.agent_events,
             }
         };
         CliRequest::Agent {

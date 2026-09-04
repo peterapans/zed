@@ -739,6 +739,7 @@ pub async fn handle_cli_connection(
                         model,
                         new_thread,
                         wait,
+                        events,
                     } => {
                         let selector = if new_thread {
                             agent_ui::ThreadSelector::New
@@ -765,15 +766,37 @@ pub async fn handle_cli_connection(
 
                         match agent_ui::dispatch_cli_prompt(request, app_state.clone(), cx).await {
                             Ok(outcome) => {
+                                let outcome_thread_id = match &outcome {
+                                    agent_ui::DispatchOutcome::Sent { thread_id }
+                                    | agent_ui::DispatchOutcome::Queued { thread_id } => *thread_id,
+                                };
                                 match outcome {
                                     agent_ui::DispatchOutcome::Sent { thread_id } => {
-                                        responses
-                                            .send(CliResponse::Stdout {
-                                                message: thread_id.to_string(),
-                                            })
-                                            .log_err();
+                                        if events {
+                                            send_agent_event(
+                                                responses.as_ref(),
+                                                "turn_dispatched",
+                                                Some(thread_id),
+                                                None,
+                                            );
+                                        }
+                                        if !events {
+                                            responses
+                                                .send(CliResponse::Stdout {
+                                                    message: thread_id.to_string(),
+                                                })
+                                                .log_err();
+                                        }
                                     }
                                     agent_ui::DispatchOutcome::Queued { thread_id } => {
+                                        if events {
+                                            send_agent_event(
+                                                responses.as_ref(),
+                                                "turn_queued",
+                                                Some(thread_id),
+                                                None,
+                                            );
+                                        }
                                         // Keep stdout to the bare id so callers
                                         // can capture it either way.
                                         responses
@@ -782,16 +805,30 @@ pub async fn handle_cli_connection(
                                                     .to_string(),
                                             })
                                             .log_err();
-                                        responses
-                                            .send(CliResponse::Stdout {
-                                                message: thread_id.to_string(),
-                                            })
-                                            .log_err();
+                                        if !events {
+                                            responses
+                                                .send(CliResponse::Stdout {
+                                                    message: thread_id.to_string(),
+                                                })
+                                                .log_err();
+                                        }
                                     }
+                                }
+                                if events && wait {
+                                    send_agent_event(
+                                        responses.as_ref(),
+                                        "turn_completed",
+                                        Some(outcome_thread_id),
+                                        None,
+                                    );
                                 }
                                 responses.send(CliResponse::Exit { status: 0 }).log_err();
                             }
                             Err(error) => {
+                                if events {
+                                    let message = format!("{error:#}");
+                                    send_agent_event(responses.as_ref(), "turn_failed", None, Some(&message));
+                                }
                                 responses
                                     .send(CliResponse::Stderr {
                                         message: format!("{error:#}"),
@@ -805,6 +842,29 @@ pub async fn handle_cli_connection(
             }
         }
     }
+}
+
+fn send_agent_event(
+    responses: &dyn CliResponseSink,
+    event: &str,
+    thread_id: Option<agent_ui::ThreadId>,
+    message: Option<&str>,
+) {
+    let mut value = serde_json::json!({
+        "schema": "zed.agent.events.v1",
+        "event": event,
+    });
+    if let Some(thread_id) = thread_id {
+        value["thread_id"] = serde_json::Value::String(thread_id.to_string());
+    }
+    if let Some(message) = message {
+        value["message"] = serde_json::Value::String(message.to_owned());
+    }
+    responses
+        .send(CliResponse::Stdout {
+            message: value.to_string(),
+        })
+        .log_err();
 }
 
 /// Resolves the CLI open behavior when no explicit open behavior flag was given.
