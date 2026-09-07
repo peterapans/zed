@@ -751,9 +751,11 @@ pub async fn handle_cli_connection(
                             agent_ui::ThreadSelector::MostRecent
                         };
 
-                        // Deliberately do NOT call cx.activate(true) —
-                        // a webhook/automation-triggered agent turn should not
-                        // steal window focus from the user.
+                        // CLI callers explicitly request visible progress. Bring
+                        // the existing Zed window to the foreground so the Agent
+                        // panel and the dispatched thread are visible while the
+                        // JSONL stream remains available to automation.
+                        cx.update(|cx| cx.activate(true));
 
                         let request = agent_ui::CliPromptRequest {
                             selector,
