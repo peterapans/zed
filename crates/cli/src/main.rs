@@ -164,6 +164,9 @@ struct Args {
     /// Emit machine-readable JSONL lifecycle events for an agent prompt
     #[arg(long)]
     agent_events: bool,
+    /// Thinking effort for a new native Agent thread.
+    #[arg(long, value_name = "EFFORT")]
+    agent_thinking_effort: Option<String>,
     /// Agent profile for a new thread, which decides the available tools.
     /// Requires `--agent-new`
     #[arg(long, value_name = "PROFILE")]
@@ -513,6 +516,7 @@ mod tests {
             agent_new: false,
             agent_wait: false,
             agent_events: false,
+            agent_thinking_effort: None,
             agent_list_format: AgentListFormat::Text,
             agent_profile: None,
             agent_model: None,
@@ -918,6 +922,7 @@ fn validate_agent_args(args: &Args) -> Result<()> {
         anyhow::ensure!(!args.agent_new, "--agent-new requires --agent");
         anyhow::ensure!(!args.agent_wait, "--agent-wait requires --agent");
         anyhow::ensure!(!args.agent_events, "--agent-events requires --agent");
+        anyhow::ensure!(args.agent_thinking_effort.is_none(), "--agent-thinking-effort requires --agent");
         anyhow::ensure!(
             args.agent_project.is_none(),
             "--agent-project requires --agent or --agent-list"
@@ -995,6 +1000,10 @@ fn validate_agent_args(args: &Args) -> Result<()> {
             args.agent_model.is_none(),
             "--agent-list cannot be combined with --agent-model"
         );
+        anyhow::ensure!(
+            args.agent_thinking_effort.is_none(),
+            "--agent-list cannot be combined with --agent-thinking-effort"
+        );
     }
 
     // --agent-thread together with --agent-session is invalid.
@@ -1014,6 +1023,10 @@ fn validate_agent_args(args: &Args) -> Result<()> {
         anyhow::ensure!(
             args.agent_model.is_none(),
             "--agent-model requires --agent-new"
+        );
+        anyhow::ensure!(
+            args.agent_thinking_effort.is_none(),
+            "--agent-thinking-effort requires --agent-new"
         );
     }
 
@@ -1355,6 +1368,7 @@ fn run() -> Result<()> {
                 new_thread: args.agent_new,
                 wait: args.agent_wait,
                 events: args.agent_events,
+                thinking_effort: args.agent_thinking_effort.clone(),
             }
         };
         CliRequest::Agent {

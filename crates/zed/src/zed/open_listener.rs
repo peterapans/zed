@@ -740,6 +740,7 @@ pub async fn handle_cli_connection(
                         new_thread,
                         wait,
                         events,
+                        thinking_effort,
                     } => {
                         let selector = if new_thread {
                             agent_ui::ThreadSelector::New
@@ -764,6 +765,7 @@ pub async fn handle_cli_connection(
                             profile,
                             model,
                             wait,
+                            thinking_effort,
                         };
 
                         match agent_ui::dispatch_cli_prompt(request, app_state.clone(), cx).await {

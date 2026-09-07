@@ -983,6 +983,8 @@ pub struct CreateThreadOptions {
     /// Profile to run the thread under, deciding which tools are available.
     /// Only applied when the thread uses the native Zed agent.
     pub profile: Option<AgentProfileId>,
+    /// Thinking effort for the native Zed agent thread.
+    pub thinking_effort: Option<String>,
     /// Working directories to attach to the new thread (e.g., the path of a
     /// freshly-created sibling worktree). When `None`, the thread inherits
     /// the project's default path list.
@@ -3266,6 +3268,13 @@ impl AgentPanel {
             self.set_selected_agent_and_persist(original, cx);
         }
         let thread_id = thread.conversation_view.read(cx).thread_id;
+        if let Some(effort) = options.thinking_effort {
+            if let Some(thread_view) = thread.conversation_view.read(cx).root_thread_view() {
+                thread_view.update(cx, |view, cx| {
+                    view.thread.set_thinking_effort(Some(effort), cx);
+                });
+            }
+        }
         self.retained_threads
             .insert(thread_id, thread.conversation_view);
         thread_id

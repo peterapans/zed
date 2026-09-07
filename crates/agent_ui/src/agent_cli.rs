@@ -73,6 +73,7 @@ pub struct CliPromptRequest {
     /// Model for a thread being created, as `provider/model-id`. Only honored
     /// alongside [`ThreadSelector::New`].
     pub model: Option<String>,
+    pub thinking_effort: Option<String>,
     pub wait: bool,
 }
 
@@ -80,6 +81,7 @@ pub struct CliPromptRequest {
 struct TurnSettings {
     profile: Option<AgentProfileId>,
     model: Option<String>,
+    thinking_effort: Option<String>,
 }
 
 /// One row of `--agent-list` output.
@@ -158,6 +160,7 @@ pub fn dispatch_cli_prompt(
             project: project_filter,
             profile,
             model,
+            thinking_effort,
             wait,
         } = request;
 
@@ -178,7 +181,7 @@ pub fn dispatch_cli_prompt(
             if let Some(model) = model.as_deref() {
                 validate_model(model, cx)?;
             }
-            anyhow::Ok(TurnSettings { profile, model })
+        anyhow::Ok(TurnSettings { profile, model, thinking_effort })
         })?;
 
         match selector {
@@ -192,8 +195,8 @@ pub fn dispatch_cli_prompt(
                 // applies to running subagents, so they configure a thread
                 // being created rather than reconfigure an existing one.
                 anyhow::ensure!(
-                    turn.profile.is_none() && turn.model.is_none(),
-                    "a profile or model can only be set when creating a thread"
+                    turn.profile.is_none() && turn.model.is_none() && turn.thinking_effort.is_none(),
+                    "profile, model, or thinking effort can only be set when creating a thread"
                 );
 
                 let resolved_id = resolve_thread_id(&selector, project_filter.as_deref(), &cx)?;
@@ -668,6 +671,7 @@ async fn dispatch_into_new_thread(
                     initial_content: Some(initial_content),
                     model: turn.model.clone(),
                     profile: turn.profile.clone(),
+                    thinking_effort: turn.thinking_effort.clone(),
                     work_dirs: project_filter
                         .as_ref()
                         .map(|project_path| PathList::new(std::slice::from_ref(project_path))),

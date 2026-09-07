@@ -77,6 +77,9 @@ pub enum AgentAction {
         /// Emit machine-readable JSONL lifecycle events.
         #[serde(default)]
         events: bool,
+        /// Thinking effort applied to a newly-created native Zed thread.
+        #[serde(default)]
+        thinking_effort: Option<String>,
     },
     /// List known threads.
     List {
