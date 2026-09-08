@@ -173,6 +173,23 @@ pub fn dispatch_cli_prompt(
 
         // Validated before anything is dispatched, so a typo can't leave a
         // thread running under the wrong tool set.
+        if let Some(model) = model.as_deref() {
+            let deadline = std::time::Instant::now() + Duration::from_secs(30);
+            loop {
+                match cx.update(|cx| validate_model(model, cx)) {
+                    Ok(()) => break,
+                    Err(error) => {
+                        let message = error.to_string();
+                        if std::time::Instant::now() >= deadline
+                            || !(message.starts_with("authenticationRequired:")
+                                || message.starts_with("modelCatalogNotReady:")) {
+                            return Err(error);
+                        }
+                    }
+                }
+                cx.background_executor().timer(Duration::from_millis(200)).await;
+            }
+        }
         let turn = cx.update(|cx| {
             let profile = profile
                 .as_deref()
@@ -347,7 +364,7 @@ async fn dispatch_into_open_window(
     })??;
 
     if wait {
-        wait_for_idle_and_empty_queue_in_window(&window_handle, thread_id, cx).await;
+        wait_for_idle_and_empty_queue_in_window(&window_handle, thread_id, cx).await?;
     }
 
     Ok(outcome)
@@ -381,8 +398,18 @@ fn validate_model(model: &str, cx: &mut App) -> Result<()> {
         format!("could not parse model \"{model}\"; expected `provider/model-id`")
     })?;
     LanguageModelRegistry::global(cx)
-        .update(cx, |registry, cx| registry.select_model(&selected, cx))
-        .with_context(|| format!("no configured model matches \"{model}\""))?;
+        .update(cx, |registry, cx| {
+            let provider = registry.provider(&selected.provider)
+                .with_context(|| format!("model provider {} is not registered", selected.provider.0))?;
+            anyhow::ensure!(provider.is_authenticated(cx),
+                "authenticationRequired: sign in to {} in this Zed instance before selecting a hosted model", selected.provider.0);
+            let models = provider.provided_models(cx);
+            anyhow::ensure!(!models.is_empty(),
+                "modelCatalogNotReady: {} has no loaded models; wait for account/model loading and retry", selected.provider.0);
+            registry.select_model(&selected, cx)
+                .with_context(|| format!("no configured model matches \"{model}\"; available model ids: {}",
+                    models.iter().map(|m| m.id().0.to_string()).collect::<Vec<_>>().join(", ")))
+        })?;
     Ok(())
 }
 
@@ -462,7 +489,9 @@ async fn wait_for_idle_and_empty_queue_in_window(
     window_handle: &WindowHandle<MultiWorkspace>,
     thread_id: ThreadId,
     cx: &mut AsyncApp,
-) {
+) -> Result<()> {
+    let started_at = std::time::Instant::now();
+    let mut observed_generating = false;
     loop {
         // A closed window or a vanished thread leaves nothing to wait for.
         let done = window_handle
@@ -470,16 +499,20 @@ async fn wait_for_idle_and_empty_queue_in_window(
                 let Some((thread_view, acp_thread)) =
                     find_thread_view_in_workspaces(multi, thread_id, cx)
                 else {
-                    return true;
+                    return Ok(false);
                 };
+                anyhow::ensure!(!acp_thread.read(cx).had_error(), "Zed Agent turn failed; inspect the thread error in Zed");
                 let is_idle = acp_thread.read(cx).status() == ThreadStatus::Idle;
-                is_idle && thread_view.read(cx).is_message_queue_empty()
+                if !is_idle { observed_generating = true; }
+                Ok(observed_generating && is_idle && thread_view.read(cx).is_message_queue_empty())
             })
-            .unwrap_or(true);
+            .context("Zed window closed while waiting for the Agent")??;
 
         if done {
-            return;
+            return Ok(());
         }
+        anyhow::ensure!(observed_generating || started_at.elapsed() < Duration::from_secs(60),
+            "Agent startup was not observed; refusing to report completion");
 
         cx.background_executor()
             .timer(Duration::from_millis(200))
@@ -666,8 +699,9 @@ async fn dispatch_into_new_thread(
         let panel = agent_panel_for_window(multi, matched_workspace.as_ref(), cx)?;
 
         let result = panel.update(cx, |panel, cx| {
-            panel.create_thread_with_options(
+            let thread_id = panel.create_thread_with_options(
                 CreateThreadOptions {
+                    agent: Some(Agent::NativeAgent),
                     initial_content: Some(initial_content),
                     model: turn.model.clone(),
                     profile: turn.profile.clone(),
@@ -680,7 +714,9 @@ async fn dispatch_into_new_thread(
                 AgentThreadSource::AgentPanel,
                 window,
                 cx,
-            )
+            );
+            panel.activate_retained_thread(thread_id, true, window, cx);
+            thread_id
         });
         anyhow::Ok(result)
     })??;
@@ -688,7 +724,7 @@ async fn dispatch_into_new_thread(
     if wait {
         // The thread was created with `auto_submit`, so waiting for it to go
         // idle also covers the automatic first turn.
-        wait_for_idle_and_empty_queue_in_window(&window_handle, thread_id, cx).await;
+        wait_for_idle_and_empty_queue_in_window(&window_handle, thread_id, cx).await?;
     }
 
     Ok(DispatchOutcome::Sent { thread_id })

@@ -3269,13 +3269,17 @@ impl AgentPanel {
         }
         let thread_id = thread.conversation_view.read(cx).thread_id;
         if let Some(effort) = options.thinking_effort {
-            if let Some(thread_view) = thread.conversation_view.read(cx).root_thread_view() {
-                thread_view.update(cx, |view, cx| {
-                    view.thread.update(cx, |thread, cx| {
-                        thread.set_thinking_effort(Some(effort), cx);
-                    });
-                });
-            }
+            let applied = Cell::new(false);
+            cx.subscribe(&thread.conversation_view,
+                move |_this, view, _event: &RootThreadUpdated, cx| {
+                    if applied.get() { return; }
+                    if let Some(native_thread) = view.read(cx).as_native_thread(cx) {
+                        native_thread.update(cx, |thread, cx| {
+                            thread.set_thinking_effort(Some(effort.clone()), cx);
+                        });
+                        applied.set(true);
+                    }
+                }).detach();
         }
         self.retained_threads
             .insert(thread_id, thread.conversation_view);
