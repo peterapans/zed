@@ -691,7 +691,7 @@ pub async fn handle_cli_connection(
                                             ).collect::<Vec<_>>()
                                         })
                                     }).collect::<Vec<_>>();
-                                    serde_json::json!({"id": provider.id().0.to_string(), "authenticated": provider.is_authenticated(cx), "models": models})
+                                    serde_json::json!({"id": provider.id().0.to_string(), "authenticated": provider.is_authenticated(cx), "default_model": provider.default_model(cx).map(|model| model.id().0.to_string()), "models": models})
                                 }).collect::<Vec<_>>()
                         });
                         responses.send(CliResponse::Stdout { message: serde_json::json!({"providers": catalog}).to_string() }).log_err();
