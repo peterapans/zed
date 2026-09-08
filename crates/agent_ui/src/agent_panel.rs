@@ -3271,7 +3271,9 @@ impl AgentPanel {
         if let Some(effort) = options.thinking_effort {
             if let Some(thread_view) = thread.conversation_view.read(cx).root_thread_view() {
                 thread_view.update(cx, |view, cx| {
-                    view.thread.set_thinking_effort(Some(effort), cx);
+                    view.thread.update(cx, |thread, cx| {
+                        thread.set_thinking_effort(Some(effort), cx);
+                    });
                 });
             }
         }
@@ -4843,6 +4845,7 @@ impl agent::SiblingThreadHost for AgentPanelSiblingHost {
                 agent: agent_choice.clone(),
                 model: request.model.clone(),
                 profile: None,
+                thinking_effort: None,
                 work_dirs: None,
             };
 
