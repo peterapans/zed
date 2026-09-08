@@ -678,6 +678,25 @@ pub async fn handle_cli_connection(
             }
             CliRequest::Agent { action, cwd } => {
                 match action {
+                    cli::AgentAction::Models => {
+                        let catalog = cx.update(|cx| {
+                            language_model::LanguageModelRegistry::global(cx).read(cx).providers()
+                                .into_iter().map(|provider| {
+                                    let models = provider.provided_models(cx).into_iter().map(|model| {
+                                        serde_json::json!({
+                                            "id": model.id().0.to_string(),
+                                            "name": model.name().0.to_string(),
+                                            "efforts": model.supported_effort_levels().iter().map(|e|
+                                                serde_json::json!({"id": e.value.to_string(), "label": e.name.to_string(), "default": e.is_default})
+                                            ).collect::<Vec<_>>()
+                                        })
+                                    }).collect::<Vec<_>>();
+                                    serde_json::json!({"id": provider.id().0.to_string(), "authenticated": provider.is_authenticated(cx), "models": models})
+                                }).collect::<Vec<_>>()
+                        });
+                        responses.send(CliResponse::Stdout { message: serde_json::json!({"providers": catalog}).to_string() }).log_err();
+                        responses.send(CliResponse::Exit { status: 0 }).log_err();
+                    }
                     cli::AgentAction::List { project, json } => {
                         // Scope to the invoking shell's directory when no
                         // project was given, so `zed --agent-list` inside a

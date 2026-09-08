@@ -144,6 +144,9 @@ struct Args {
     /// List agent threads instead of sending a prompt
     #[arg(long)]
     agent_list: bool,
+    /// List the running Zed instance's actual model catalog as JSON.
+    #[arg(long, conflicts_with_all = ["agent", "agent_list"])]
+    agent_models: bool,
     /// Target an existing thread by id, given either in full or as a unique
     /// leading fragment of one. Hyphens are optional, so `550e8400-e29b` and
     /// `550e8400e29b` select the same thread. Use `--agent-list` to see ids.
@@ -510,6 +513,7 @@ mod tests {
             diff: vec![],
             agent: false,
             agent_list: false,
+            agent_models: false,
             agent_thread: None,
             agent_session: None,
             agent_project: None,
@@ -1089,7 +1093,7 @@ fn run() -> Result<()> {
 
     // Validate agent arg combinations before doing any IPC work.
     validate_agent_args(&args)?;
-    let is_agent_mode = args.agent || args.agent_list;
+    let is_agent_mode = args.agent || args.agent_list || args.agent_models;
 
     // `zed --askpass` Makes zed operate in nc/netcat mode for use with askpass
     if let Some(socket) = &args.askpass {
@@ -1352,7 +1356,9 @@ fn run() -> Result<()> {
         .unwrap();
 
     let ipc_request = if is_agent_mode {
-        let action = if args.agent_list {
+        let action = if args.agent_models {
+            AgentAction::Models
+        } else if args.agent_list {
             AgentAction::List {
                 project: agent_project,
                 json: args.agent_list_format == AgentListFormat::Json,

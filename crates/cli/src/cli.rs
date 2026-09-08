@@ -54,6 +54,7 @@ pub enum CliBehaviorSetting {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum AgentAction {
+    Models,
     /// Send a prompt into a thread, creating one if needed.
     Prompt {
         prompt: String,
