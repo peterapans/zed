@@ -371,6 +371,22 @@ async fn dispatch_into_open_window(
 }
 
 /// Checks a profile name against the configured profiles.
+pub fn cli_thread_reply(thread_id: ThreadId, cx: &mut AsyncApp) -> Option<String> {
+    let window = find_open_thread_window(thread_id, cx)?;
+    window.update(cx, |multi, _window, cx| {
+        let (_, thread) = find_thread_view_in_workspaces(multi, thread_id, cx)?;
+        thread.read(cx).entries().iter().rev().find_map(|entry| {
+            if let acp_thread::AgentThreadEntry::AssistantMessage(message) = entry {
+                let text = message.chunks.iter().filter_map(|chunk| match chunk {
+                    acp_thread::AssistantMessageChunk::Message { block, .. } => Some(block.to_markdown(cx)),
+                    _ => None,
+                }).collect::<Vec<_>>().join("\n");
+                if !text.is_empty() { Some(text) } else { None }
+            } else { None }
+        })
+    }).ok().flatten()
+}
+
 ///
 /// Automation depends on the tool set a profile implies, so an unknown name is
 /// an error rather than a silent fallback to the default.

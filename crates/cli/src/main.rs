@@ -1855,7 +1855,11 @@ mod flatpak {
 #[cfg(target_os = "windows")]
 mod windows {
     use anyhow::Context;
-    use release_channel::app_identifier;
+    use release_channel::app_identifier as release_app_identifier;
+
+    fn app_identifier() -> String {
+        format!("{}-codexhost-agent", release_app_identifier())
+    }
     use windows::{
         Win32::{
             Foundation::{CloseHandle, ERROR_ALREADY_EXISTS, GENERIC_WRITE, GetLastError},

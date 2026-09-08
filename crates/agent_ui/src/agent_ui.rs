@@ -70,7 +70,7 @@ use std::path::{Path, PathBuf};
 use workspace::{OpenOptions, Workspace};
 
 pub use crate::agent_cli::{
-    CliPromptRequest, DispatchOutcome, ThreadListEntry, ThreadSelector, dispatch_cli_prompt,
+    CliPromptRequest, DispatchOutcome, ThreadListEntry, ThreadSelector, dispatch_cli_prompt, cli_thread_reply,
     list_threads,
 };
 use crate::agent_configuration::ManageProfilesModal;

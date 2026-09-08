@@ -838,11 +838,12 @@ pub async fn handle_cli_connection(
                                     }
                                 }
                                 if events && wait {
+                                    let reply = agent_ui::cli_thread_reply(outcome_thread_id, cx);
                                     send_agent_event(
                                         responses.as_ref(),
                                         "turn_completed",
                                         Some(outcome_thread_id),
-                                        None,
+                                        reply.as_deref(),
                                     );
                                 }
                                 responses.send(CliResponse::Exit { status: 0 }).log_err();

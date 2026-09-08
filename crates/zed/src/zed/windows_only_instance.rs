@@ -3,7 +3,11 @@ use std::{sync::Arc, thread::JoinHandle};
 use anyhow::Context;
 use cli::{CliRequest, CliResponse, IpcHandshake, ipc::IpcOneShotServer};
 use parking_lot::Mutex;
-use release_channel::app_identifier;
+use release_channel::app_identifier as release_app_identifier;
+
+fn app_identifier() -> String {
+    format!("{}-codexhost-agent", release_app_identifier())
+}
 use util::ResultExt;
 use windows::{
     Win32::{
